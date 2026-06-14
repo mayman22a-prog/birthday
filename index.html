@@ -119,28 +119,38 @@
     font-size:12px; margin-top:8px; color:#d9c9ff; letter-spacing:.5px;
   }
 
-  /* ---------- زرار الفيديو كول ---------- */
-  #callBtn{
+  /* ---------- زرار الهدية ---------- */
+  #giftBtn{
     display:none;
     margin-top:12px;
-    font-family:'Tajawal'; font-weight:700; font-size:19px;
+    font-family:'Tajawal', sans-serif; font-weight:700; font-size:19px;
     color:#3a0f2a;
     background:linear-gradient(135deg, var(--gold), var(--rose));
     border:none; border-radius:50px;
     padding:18px 36px;
     cursor:pointer;
-    text-decoration:none;
     box-shadow:0 10px 40px rgba(255,126,179,.5);
     animation:pulse 2s ease-in-out infinite, fadeUp 1s ease both;
     transition:transform .15s ease;
   }
-  #callBtn:active{ transform:scale(.95); }
+  #giftBtn:active{ transform:scale(.95); }
   @keyframes pulse{
     0%,100%{ box-shadow:0 10px 40px rgba(255,126,179,.45); }
     50%{ box-shadow:0 10px 55px rgba(255,212,121,.75); }
   }
-  #callBtn .heart{ display:inline-block; animation:beat 1s infinite; }
+  #giftBtn .heart{ display:inline-block; animation:beat 1s infinite; }
   @keyframes beat{ 0%,100%{transform:scale(1);} 50%{transform:scale(1.25);} }
+
+  /* ---------- الفيديو ---------- */
+  #videoWrap{
+    width:100%; max-width:540px; margin-top:10px;
+    border-radius:20px; overflow:hidden;
+    box-shadow:0 14px 50px rgba(0,0,0,.5);
+    border:2px solid rgba(255,212,121,.3);
+    animation:fadeUp .8s ease both;
+  }
+  #videoWrap video{ width:100%; height:auto; display:block; background:#000; }
+  #videoWrap iframe{ width:100%; aspect-ratio:16/9; display:block; border:0; }
 
   .hidden{ display:none !important; }
 
@@ -176,7 +186,8 @@
       <p class="eyebrow">🎉 خلاص بقت الساعة ١٢ 🎉</p>
       <h1 id="bdayTitle"></h1>
       <p class="message" id="bdayMsg"></p>
-      <a id="callBtn" href="#"><span class="heart">❤️</span> اتصلي بيا فيديو</a>
+      <button id="giftBtn"><span class="heart">🎁</span> <span id="giftBtnText"></span></button>
+      <div id="videoWrap" class="hidden"></div>
     </div>
   </div>
 
@@ -201,12 +212,14 @@ const CONFIG = {
     // "https://example.com/photo2.jpg",
   ],
 
-  // ===== زرار الفيديو كول =====
-  // نوع المكالمة: "whatsapp" أو "facetime" أو "tel"
-  callType: "whatsapp",
-  // رقمك بصيغة دولية من غير + ولا أصفار (مصر = 20 + الرقم من غير الصفر)
-  // مثال: 01001234567  =>  201001234567
-  phoneNumber: "201066039884",
+  // ===== الفيديو اللي هيشتغل لما تدوس الزرار =====
+  // نوع الفيديو: "file" لو رافع ملف جنب الموقع، أو "youtube" لو حاطه على يوتيوب
+  videoType: "file",
+  // لو file: اسم الملف اللي هترفعه جنب index.html (مثلاً "video.mp4")
+  // لو youtube: حط لينك الفيديو كامل أو الـ ID بتاعه
+  videoSrc: "video.mp4",
+  // الكلام اللي هيكون على الزرار اللي هتدوس عليه
+  buttonText: "افتحي هديتك 🎁",
 
   // الرسالة الرومانسية بتاعة عيد الميلاد
   bdayTitle: "كل سنة وانتي طيبة يا لولو 🎂",
@@ -294,13 +307,37 @@ function tick(){
 }
 tick();
 
-/* ---------- الاحتفال + الفيديو كول ---------- */
-function buildCallLink(){
-  const num = CONFIG.phoneNumber;
-  if(CONFIG.callType === 'facetime') return 'facetime://' + num;
-  if(CONFIG.callType === 'tel') return 'tel:+' + num;
-  // whatsapp بالافتراضي
-  return 'https://wa.me/' + num + '?text=' + encodeURIComponent('عايزة أكلمك دلوقتي ❤️');
+/* ---------- الاحتفال + الفيديو ---------- */
+function youtubeId(src){
+  // بياخد لينك يوتيوب كامل أو ID ويطلّع الـ ID
+  const m = src.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : src.trim();
+}
+
+function revealVideo(){
+  const btn = document.getElementById('giftBtn');
+  const wrap = document.getElementById('videoWrap');
+  btn.style.display = 'none';
+  wrap.classList.remove('hidden');
+
+  if(CONFIG.videoType === 'youtube'){
+    const id = youtubeId(CONFIG.videoSrc);
+    wrap.innerHTML =
+      '<iframe src="https://www.youtube.com/embed/' + id +
+      '?autoplay=1&rel=0&playsinline=1" allow="autoplay; encrypted-media; fullscreen" ' +
+      'allowfullscreen frameborder="0"></iframe>';
+  } else {
+    // ملف فيديو
+    const v = document.createElement('video');
+    v.src = CONFIG.videoSrc;
+    v.setAttribute('playsinline','');
+    v.controls = true;
+    v.autoplay = true;
+    wrap.appendChild(v);
+    // الضغط على الزرار = تفاعل من المستخدم، فالصوت مسموح
+    const p = v.play();
+    if(p && p.catch) p.catch(() => { v.muted = false; });
+  }
 }
 
 function startCelebration(){
@@ -314,9 +351,11 @@ function startCelebration(){
   document.getElementById('bdayMsg').innerHTML =
     CONFIG.bdayMessage.replace(/حبيبتي/g, `<span class="name">${CONFIG.herName}</span>`);
 
-  const btn = document.getElementById('callBtn');
-  btn.href = buildCallLink();
+  const btn = document.getElementById('giftBtn');
+  document.getElementById('giftBtnText').textContent =
+    CONFIG.buttonText.replace(/^🎁\s*/,'');
   btn.style.display = 'inline-block';
+  btn.addEventListener('click', revealVideo);
 
   launchFireworks();
 }
@@ -336,54 +375,4 @@ function launchFireworks(){
     const color = colors[Math.floor(Math.random()*colors.length)];
     for(let i=0;i<count;i++){
       const ang = (Math.PI*2) * (i/count);
-      const sp = Math.random()*5 + 2;
-      particles.push({
-        x, y,
-        vx: Math.cos(ang)*sp,
-        vy: Math.sin(ang)*sp,
-        life: 1,
-        color: Math.random() < .3 ? colors[Math.floor(Math.random()*colors.length)] : color,
-        size: Math.random()*2.5 + 1.2
-      });
-    }
-  }
-
-  // فرقعة كل شوية في أماكن عشوائية
-  const auto = setInterval(() => {
-    burst(Math.random()*c.width, Math.random()*c.height*0.55 + c.height*0.08);
-  }, 700);
-
-  // دفعة كبيرة في الأول
-  for(let i=0;i<6;i++){
-    setTimeout(() => burst(Math.random()*c.width, Math.random()*c.height*0.5 + 60), i*220);
-  }
-
-  // فرقعة لما تلمس الشاشة كمان
-  addEventListener('pointerdown', e => burst(e.clientX, e.clientY));
-
-  (function loop(){
-    ctx.fillStyle = 'rgba(20,8,43,0.16)';
-    ctx.fillRect(0,0,c.width,c.height);
-    particles.forEach(p => {
-      p.vy += 0.045;          // جاذبية
-      p.vx *= 0.99; p.vy *= 0.99;
-      p.x += p.vx; p.y += p.vy;
-      p.life -= 0.012;
-      ctx.globalAlpha = Math.max(p.life, 0);
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 7); ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-    particles = particles.filter(p => p.life > 0);
-    requestAnimationFrame(loop);
-  })();
-
-  // نخفّف الفرقعة التلقائية بعد دقيقة ونص
-  setTimeout(() => clearInterval(auto), 90000);
-}
-
-/* للتجربة: اكتب في الـ console الكلمة  test()  عشان تشوف الاحتفال على طول */
-window.test = startCelebration;
-</script>
-</body>
-</html>
+      const 
