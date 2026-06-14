@@ -119,6 +119,49 @@
     font-size:12px; margin-top:8px; color:#d9c9ff; letter-spacing:.5px;
   }
 
+  /* ---------- اللعبة ---------- */
+  #heartLayer{ position:fixed; inset:0; z-index:5; pointer-events:none; overflow:hidden; }
+  .float-heart{
+    position:absolute; bottom:-60px;
+    font-size:38px; line-height:1;
+    pointer-events:auto; cursor:pointer;
+    user-select:none; -webkit-user-select:none;
+    filter:drop-shadow(0 4px 12px rgba(255,126,179,.5));
+    will-change:transform;
+  }
+  .float-heart.pop{ animation:pop .3s ease forwards !important; pointer-events:none; }
+  @keyframes pop{ to{ transform:scale(2); opacity:0; } }
+  @keyframes floatUp{
+    from{ transform:translateY(0) rotate(0deg); }
+    to{ transform:translateY(-115vh) rotate(var(--rot,20deg)); }
+  }
+  .score-popup{
+    position:absolute; pointer-events:none; z-index:6;
+    color:var(--gold); font-weight:700; font-size:22px;
+    animation:popUp .7s ease forwards;
+  }
+  @keyframes popUp{ from{opacity:1; transform:translateY(0);} to{opacity:0; transform:translateY(-40px);} }
+
+  #gameUI{ display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .game-instruction{ font-size:17px; color:#f3e3ff; }
+  .score-pill{
+    direction:ltr;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,126,179,.35);
+    border-radius:50px; padding:10px 22px;
+    font-size:22px; font-weight:700; color:var(--cream);
+    backdrop-filter:blur(6px);
+  }
+  .score-pill #score{ color:var(--gold); }
+
+  /* الزرار وهو مقفول */
+  #giftBtn.locked{
+    opacity:.35; filter:grayscale(.7);
+    cursor:not-allowed; pointer-events:none;
+    animation:none;
+  }
+  #giftBtn.unlocked{ animation:pulse 2s ease-in-out infinite, fadeUp .8s ease both; }
+
   /* ---------- زرار الهدية ---------- */
   #giftBtn{
     display:none;
@@ -165,6 +208,7 @@
   <div id="overlay"></div>
   <canvas id="stars"></canvas>
   <canvas id="fireworks"></canvas>
+  <div id="heartLayer"></div>
 
   <div id="content">
     <!-- مرحلة الانتظار -->
@@ -186,6 +230,12 @@
       <p class="eyebrow">🎉 خلاص بقت الساعة ١٢ 🎉</p>
       <h1 id="bdayTitle"></h1>
       <p class="message" id="bdayMsg"></p>
+
+      <div id="gameUI" class="hidden">
+        <p class="game-instruction" id="gameInstruction">المسي القلوب وجمّعي ٢٦ قلب تفتحي هديتك ❤️</p>
+        <div class="score-pill">❤️ <span id="score">0</span> / <span id="target">26</span></div>
+      </div>
+
       <button id="giftBtn"><span class="heart">🎁</span> <span id="giftBtnText"></span></button>
       <div id="videoWrap" class="hidden"></div>
     </div>
@@ -220,6 +270,10 @@ const CONFIG = {
   videoSrc: "video.mp4",
   // الكلام اللي هيكون على الزرار اللي هتدوس عليه
   buttonText: "افتحي هديتك 🎁",
+
+  // ===== اللعبة قبل الهدية =====
+  gameEnabled: true,   // خليها false لو عايز تشيل اللعبة
+  targetPoints: 26,    // النقط المطلوبة (سن لولو 🎂)
 
   // الرسالة الرومانسية بتاعة عيد الميلاد
   bdayTitle: "كل سنة وانتي طيبة يا لولو 🎂",
@@ -357,7 +411,76 @@ function startCelebration(){
   btn.style.display = 'inline-block';
   btn.addEventListener('click', revealVideo);
 
+  if(CONFIG.gameEnabled){
+    btn.classList.add('locked');
+    document.getElementById('gameUI').classList.remove('hidden');
+    startGame();
+  }
+
   launchFireworks();
+}
+
+/* ---------- لعبة جمع القلوب ---------- */
+function startGame(){
+  const layer = document.getElementById('heartLayer');
+  const scoreEl = document.getElementById('score');
+  const targetEl = document.getElementById('target');
+  const target = CONFIG.targetPoints;
+  let score = 0, spawning = true;
+  targetEl.textContent = target;
+  scoreEl.textContent = 0;
+
+  const hearts = ['❤️','💖','💗','💕','💘','🩷'];
+
+  function spawn(){
+    if(!spawning) return;
+    const h = document.createElement('div');
+    h.className = 'float-heart';
+    const special = Math.random() < 0.12;            // قلب دهبي = 3 نقط
+    h.textContent = special ? '💛' : hearts[Math.floor(Math.random()*hearts.length)];
+    const worth = special ? 3 : 1;
+    h.style.fontSize = (special ? 52 : 30 + Math.random()*16) + 'px';
+    h.style.left = (Math.random()*84 + 5) + 'vw';
+    h.style.setProperty('--rot', (Math.random()*60 - 30) + 'deg');
+    h.style.animation = `floatUp ${4.5 + Math.random()*3}s linear forwards`;
+    h.addEventListener('click', e => collect(e, h, worth));
+    h.addEventListener('animationend', () => h.remove());
+    layer.appendChild(h);
+  }
+
+  function collect(e, h, worth){
+    if(h.classList.contains('pop')) return;
+    score += worth;
+    scoreEl.textContent = Math.min(score, target);
+
+    const pu = document.createElement('div');
+    pu.className = 'score-popup';
+    pu.textContent = '+' + worth;
+    pu.style.left = e.clientX + 'px';
+    pu.style.top = e.clientY + 'px';
+    document.body.appendChild(pu);
+    setTimeout(() => pu.remove(), 700);
+
+    h.classList.add('pop');
+    setTimeout(() => h.remove(), 300);
+
+    if(score >= target) winGame();
+  }
+
+  function winGame(){
+    spawning = false;
+    clearInterval(spawner);
+    setTimeout(() => { layer.innerHTML = ''; }, 400);
+    scoreEl.textContent = target;
+    document.getElementById('gameInstruction').textContent =
+      'برافو يا ' + CONFIG.herName + '! 🎉 دوسي على هديتك ❤️';
+    const btn = document.getElementById('giftBtn');
+    btn.classList.remove('locked');
+    btn.classList.add('unlocked');
+  }
+
+  const spawner = setInterval(spawn, 650);
+  for(let i=0;i<4;i++) setTimeout(spawn, i*200);
 }
 
 /* ---------- الألعاب النارية ---------- */
@@ -375,4 +498,54 @@ function launchFireworks(){
     const color = colors[Math.floor(Math.random()*colors.length)];
     for(let i=0;i<count;i++){
       const ang = (Math.PI*2) * (i/count);
-      const 
+      const sp = Math.random()*5 + 2;
+      particles.push({
+        x, y,
+        vx: Math.cos(ang)*sp,
+        vy: Math.sin(ang)*sp,
+        life: 1,
+        color: Math.random() < .3 ? colors[Math.floor(Math.random()*colors.length)] : color,
+        size: Math.random()*2.5 + 1.2
+      });
+    }
+  }
+
+  // فرقعة كل شوية في أماكن عشوائية
+  const auto = setInterval(() => {
+    burst(Math.random()*c.width, Math.random()*c.height*0.55 + c.height*0.08);
+  }, 700);
+
+  // دفعة كبيرة في الأول
+  for(let i=0;i<6;i++){
+    setTimeout(() => burst(Math.random()*c.width, Math.random()*c.height*0.5 + 60), i*220);
+  }
+
+  // فرقعة لما تلمس الشاشة كمان
+  addEventListener('pointerdown', e => burst(e.clientX, e.clientY));
+
+  (function loop(){
+    ctx.fillStyle = 'rgba(20,8,43,0.16)';
+    ctx.fillRect(0,0,c.width,c.height);
+    particles.forEach(p => {
+      p.vy += 0.045;          // جاذبية
+      p.vx *= 0.99; p.vy *= 0.99;
+      p.x += p.vx; p.y += p.vy;
+      p.life -= 0.012;
+      ctx.globalAlpha = Math.max(p.life, 0);
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 7); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    particles = particles.filter(p => p.life > 0);
+    requestAnimationFrame(loop);
+  })();
+
+  // نخفّف الفرقعة التلقائية بعد دقيقة ونص
+  setTimeout(() => clearInterval(auto), 90000);
+}
+
+/* للتجربة: اكتب في الـ console الكلمة  test()  عشان تشوف الاحتفال على طول */
+window.test = startCelebration;
+</script>
+</body>
+</html>
